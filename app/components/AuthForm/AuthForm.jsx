@@ -1,74 +1,123 @@
-"use client";
-import Styles from "./AuthForm.module.css";
-import { useState, useEffect } from "react";
-import { endpoints } from "@/app/api/config";
-import { authorize } from "@/app/api/api-utils";
-import { isResponseOk } from "@/app/api/api-utils";
-import { useStore } from "@/app/store/app-store";
+export const getData = async (url) => {
+  try {
+    const response = await fetch(url);
+    if (response.status !== 200) {
+      throw new Error("Ошибка получения данных");
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    return error;
+  }
+};
 
-export const AuthForm = (props) => {
-  const authContext = useStore();
-  const [authData, setAuthData] = useState({ email: "", password: "" });
-  const [message, setMessage] = useState({ status: null, text: null });
-  const handleInput = (e) => {
-    setAuthData({ ...authData, [e.target.name]: e.target.value });
-  };
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const userData = await authorize(endpoints.auth, authData);
-    if (isResponseOk(userData)) {
-      authContext.login({ ...userData, id: userData._id }, userData.jwt);
-      setMessage({ status: "success", text: "Вы авторизовались!" });
-    } else {
-      setMessage({ status: "error", text: "Неверные почта или пароль" });
+export const isResponseOk = (response) => {
+  return !(response instanceof Error);
+};
+
+const normalizeDataObject = (obj) => {
+  let str = JSON.stringify(obj);
+
+  str = str.replaceAll("_id", "id");
+  const newObj = JSON.parse(str);
+  const result = { ...newObj, category: newObj.categories };
+  return result;
+};
+
+export const normalizeData = (data) => {
+  return data.map((item) => {
+    return normalizeDataObject(item);
+  });
+};
+
+export const getNormalizedGameDataById = async (url, id) => {
+  const data = await getData(`${url}/${id}`);
+  return isResponseOk(data) ? normalizeDataObject(data) : data;
+};
+
+export const getNormalizedGamesDataByCategory = async (url, category) => {
+  try {
+    const data = await getData(`${url}?categories.name=${category}`);
+    if (!data.length) {
+      // throw new Error('Нет игр в категории');
     }
-  };
-  useEffect(() => {
-    let timer;
-    if (authContext.user) {
-      timer = setTimeout(() => {
-        setMessage({ status: null, text: null });
-        props.close();
-      }, 1000);
+    return isResponseOk(data) ? normalizeData(data) : data;
+  } catch (error) {
+    return error;
+  }
+};
+
+export const authorize = async (url, data) => {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (response.status !== 200) {
+      throw new Error("Ошибка авторизации");
     }
-    return () => clearTimeout(timer);
-  }, [authContext.user]);
-  return (
-    <form onSubmit={handleSubmit} className={Styles["form"]}>
-      <h2 className={Styles["form__title"]}>Авторизация</h2>
-      <div className={Styles["form__fields"]}>
-        <label className={Styles["form__field"]}>
-          <span className={Styles["form__field-title"]}>Email</span>
-          <input
-            onInput={handleInput}
-            className={Styles["form__field-input"]}
-            name="email"
-            type="email"
-            placeholder="hello@world.com"
-          />
-        </label>
-        <label className={Styles["form__field"]}>
-          <span className={Styles["form__field-title"]}>Пароль</span>
-          <input
-            onInput={handleInput}
-            className={Styles["form__field-input"]}
-            type="password"
-            name="password"
-            placeholder="***********"
-          />
-        </label>
-      </div>
-      {message.status && (
-        <p className={Styles["form__message"]}>{message.text}</p>
-      )}
-      <div className={Styles["form__actions"]}>
-        <button className={Styles["form__reset"]} type="reset">
-          Очистить
-        </button>
-        <button className={Styles["form__submit"]} type="submit">
-          Войти
-        </button>
-      </div>
-    </form>
-  );
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return error;
+  }
+};
+
+export const setJWT = (jwt) => {
+  document.cookie = `jwt=${jwt}`;
+  localStorage.setItem("jwt", jwt);
+};
+
+export const getJWT = () => {
+  if (document.cookie === "") {
+    return localStorage.getItem("jwt");
+  }
+  const jwt = document.cookie.split(";").find((item) => item.includes("jwt"));
+  return jwt ? jwt.split("=")[1] : null;
+};
+
+export const removeJWT = () => {
+  document.cookie = "jwt=;";
+  localStorage.removeItem("jwt");
+};
+
+export const getMe = async (url, jwt) => {
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    if (response.status !== 200) {
+      throw new Error("Ошибка получения данных");
+    }
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return error;
+  }
+};
+
+export const checkIfUserVoted = (game, userId) => {
+  return game.users.find((user) => user.id === userId);
+};
+
+export const vote = async (url, jwt, usersArray) => {
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ users: usersArray }),
+    });
+    if (response.status !== 200) {
+      throw new Error("Ошибка голосования");
+    }
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return error;
+  }
 };
