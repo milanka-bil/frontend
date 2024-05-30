@@ -1,4 +1,4 @@
-export const BASE_URL = ["https://milankabackend.nomorepartiesco.ru"];
+export const BASE_URL = ["https://milankabackend.nomorepartiesco.ru/api"];
 
 export const endpoints = {
   games: `${BASE_URL}/games`,
